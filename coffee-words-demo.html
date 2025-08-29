@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Coffee Word Game</title>
+<style>
+  body {
+    margin:0; font-family:Arial,sans-serif; display:flex; justify-content:center;
+    align-items:center; height:100vh; background:linear-gradient(to bottom,#f3e5ab,#d7ccc8);
+  }
+  #container { display:flex; gap:20px; width:95%; max-width:900px; height:90vh; }
+  #gameArea {
+    position:relative; flex:3; background:#fff; border:3px solid #6d4c41;
+    border-radius:10px; overflow:hidden;
+  }
+  #title {
+    position:absolute; top:10px; width:100%; text-align:center; font-size:20px;
+    font-weight:bold; color:#4e342e;
+  }
+  #basket {
+    position:absolute; bottom:10px; width:60px; height:40px; left:150px;
+    background:linear-gradient(to bottom,#3b82f6,#1e40af);
+    border-radius:5px; box-shadow:0 4px 6px rgba(0,0,0,0.3);
+  }
+  #basket::before {
+    content:""; position:absolute; top:-20px; left:10px; width:40px; height:20px;
+    border:4px solid #1e40af; border-bottom:none; border-radius:10px 10px 0 0;
+    background:#3b82f6;
+  }
+  #basket.correct { background:linear-gradient(to bottom,#16a34a,#166534); }
+  #basket.wrong { background:linear-gradient(to bottom,#dc2626,#7f1d1d); }
+  .letter {
+    position:absolute; top:0; font-size:26px; font-weight:bold; color:#3e2723;
+    animation:spin 1s linear infinite;
+  }
+  @keyframes spin { from{transform:rotate(0);} to{transform:rotate(360deg);} }
+  #progress { position:absolute; bottom:60px; width:100%; text-align:center; font-size:22px; }
+  #controls { position:absolute; bottom:5px; width:100%; text-align:center; display:none; }
+  .btn {
+    padding:10px 20px; margin:5px; font-size:18px; border:none; border-radius:8px;
+    background:#8d6e63; color:white; cursor:pointer;
+  }
+  #scoreboard {
+    flex:1; background:#fff; border:3px solid #6d4c41; border-radius:10px; padding:10px;
+    overflow-y:auto;
+  }
+  #scoreboard h2 { font-size:18px; margin-top:0; color:#4e342e; }
+  #playerNameInput {
+    position:absolute; top:40%; left:50%; transform:translate(-50%,-50%);
+    background:white; border:2px solid #6d4c41; border-radius:10px; padding:20px;
+    text-align:center;
+  }
+  #playerNameInput input {
+    padding:8px; font-size:16px; width:200px; margin-bottom:10px;
+  }
+</style>
+</head>
+<body>
+<div id="container">
+  <div id="gameArea">
+    <div id="title"></div>
+    <div id="basket"></div>
+    <div id="progress"></div>
+    <div id="controls">
+      <button class="btn" onclick="moveBasket('left')">⬅️</button>
+      <button class="btn" onclick="moveBasket('right')">➡️</button>
+    </div>
+    <div id="playerNameInput">
+      <h3>請輸入玩家名稱：</h3>
+      <input type="text" id="playerName" placeholder="Your name">
+      <br>
+      <button class="btn" onclick="startGame()">開始遊戲</button>
+    </div>
+  </div>
+  <div id="scoreboard">
+    <h2>📊 成績板</h2>
+    <div id="time">Time: 0s</div>
+    <div id="errors">錯誤次數: 0</div>
+    <ul id="wordTimes"></ul>
+    <button class="btn" onclick="takeScreenshot()">📸 截圖分享</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+const words = [
+  {ch:"卡布奇諾", en:"cappuccino"},
+  {ch:"拿鐵", en:"latte"},
+  {ch:"美式咖啡", en:"americano"},
+  {ch:"濃縮咖啡", en:"espresso"},
+  {ch:"瑪奇朵", en:"macchiato"},
+  {ch:"咖啡師", en:"barista"},
+  {ch:"小杯", en:"tall"},
+  {ch:"中大杯", en:"grande"},
+  {ch:"超大杯", en:"venti"},
+  {ch:"糖漿", en:"syrup"},
+  {ch:"杯蓋", en:"lid"},
+  {ch:"杯套", en:"sleeve"}
+];
+let currentWordIndex=0;
+let currentIndex=0;
+let basketX=150;
+const basket=document.getElementById("basket");
+const game=document.getElementById("gameArea");
+const progress=document.getElementById("progress");
+const timeDisplay=document.getElementById("time");
+const errorsDisplay=document.getElementById("errors");
+const title=document.getElementById("title");
+const wordTimes=document.getElementById("wordTimes");
+let startTime, dropInterval;
+let totalTime=0;
+let totalErrors=0;
+let playerName="";
+
+function startGame(){
+  playerName=document.getElementById("playerName").value || "玩家";
+  document.getElementById("playerNameInput").style.display="none";
+  startWord();
+}
+
+function startWord(){
+  currentIndex=0;
+  const word=words[currentWordIndex].en;
+  title.textContent="題目："+words[currentWordIndex].ch;
+  updateProgress();
+  startTime=Date.now();
+  dropInterval=setInterval(dropLetter,1500);
+}
+
+function updateProgress(){
+  const word=words[currentWordIndex].en;
+  let shown="";
+  for(let i=0;i<word.length;i++){
+    shown += (i<currentIndex? word[i]:"_")+" ";
+  }
+  progress.textContent=shown.trim();
+}
+
+function dropLetter(){
+  const word=words[currentWordIndex].en;
+  const letter=document.createElement("div");
+  letter.className="letter";
+  letter.textContent=(Math.random()<0.7)? word[currentIndex] :
+    String.fromCharCode(97+Math.floor(Math.random()*26));
+  letter.style.left=Math.floor(Math.random()*340)+"px";
+  game.appendChild(letter);
+
+  let y=0;
+  function fall(){
+    y+=2;
+    letter.style.top=y+"px";
+    if(y>440){
+      let left=basketX, right=basketX+60;
+      let lx=parseInt(letter.style.left);
+      if(lx>left-20 && lx<right){
+        if(letter.textContent===word[currentIndex]){
+          basket.classList.add("correct");
+          setTimeout(()=>basket.classList.remove("correct"),200);
+          currentIndex++;
+          updateProgress();
+          if(currentIndex===word.length){
+            clearInterval(dropInterval);
+            let used=Math.floor((Date.now()-startTime)/1000);
+            totalTime+=used;
+            let li=document.createElement("li");
+            li.textContent=words[currentWordIndex].ch+"："+used+" 秒";
+            wordTimes.appendChild(li);
+            currentWordIndex++;
+            if(currentWordIndex<words.length){
+              setTimeout(startWord,2000);
+            } else {
+              timeDisplay.textContent=playerName+" 完成所有單字！總耗時："+totalTime+" 秒";
+            }
+          }
+        } else {
+          basket.classList.add("wrong");
+          setTimeout(()=>basket.classList.remove("wrong"),200);
+          totalErrors++;
+          errorsDisplay.textContent="錯誤次數: "+totalErrors;
+        }
+      }
+      letter.remove();
+    } else { requestAnimationFrame(fall); }
+  }
+  fall();
+}
+
+document.addEventListener("keydown",e=>{
+  if(e.key==="ArrowLeft") moveBasket("left");
+  if(e.key==="ArrowRight") moveBasket("right");
+});
+function moveBasket(dir){
+  if(dir==="left") basketX=Math.max(0,basketX-20);
+  if(dir==="right") basketX=Math.min(340,basketX+20);
+  basket.style.left=basketX+"px";
+}
+if(/Mobi|Android/i.test(navigator.userAgent)){
+  document.getElementById("controls").style.display="block";
+}
+
+// 📸 截圖功能
+function takeScreenshot(){
+  html2canvas(document.querySelector("#scoreboard")).then(canvas=>{
+    const link=document.createElement("a");
+    link.download=playerName+"_score.png";
+    link.href=canvas.toDataURL();
+    link.click();
+  });
+}
+</script>
+</body>
+</html>
